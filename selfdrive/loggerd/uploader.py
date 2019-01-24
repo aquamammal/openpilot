@@ -123,10 +123,16 @@ class Uploader(object):
       total_size += os.stat(fn).st_size
     return dict(name_counts), total_size
 
+  def next_file_to_compress(self):
+    for name, key, fn in self.gen_upload_files():
+      if name == "rlog":
+        return (key, fn, 0)
+    return None
+
   def next_file_to_upload(self, with_video):
     # try to upload log files first
     for name, key, fn in self.gen_upload_files():
-      if name in ["rlog", "rlog.bz2"]:
+      if name  == "rlog.bz2":
         return (key, fn, 0)
 
     if with_video:
@@ -197,7 +203,7 @@ class Uploader(object):
     raise_on_thread(thread, SystemExit)
     thread.join()
 
-  def upload(self, key, fn):
+  def compress(self, key, fn):
     # write out the bz2 compress
     if fn.endswith("log"):
       ext = ".bz2"
@@ -210,6 +216,9 @@ class Uploader(object):
       key += ext
       fn += ext
 
+    return (key, fn)
+
+  def upload(self, key, fn):
     try:
       sz = os.path.getsize(fn)
     except OSError:
@@ -262,6 +271,12 @@ def uploader_fn(exit_event):
     if exit_event.is_set():
       return
 
+    d = uploader.next_file_to_compress()
+    if d is not None:
+      key, fn, _ = d
+      uploader.compress(key, fn)
+      continue
+
     if not should_upload:
       time.sleep(5)
       continue
@@ -288,4 +303,3 @@ def main(gctx=None):
 
 if __name__ == "__main__":
   main()
-
